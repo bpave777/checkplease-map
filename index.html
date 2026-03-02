@@ -53,8 +53,11 @@
   .popup-region { font-size: 0.75rem; color: #aaa; margin-bottom: 6px; }
   .popup-cuisine { font-size: 0.8rem; color: #ddd; margin-bottom: 8px; }
   .popup-closed { color: #e74c3c; font-size: 0.75rem; font-style: italic; margin-bottom: 4px; }
-  .popup-link { display: inline-block; background: #c0392b; color: #fff; padding: 4px 12px; border-radius: 12px; font-size: 0.75rem; text-decoration: none; }
-  .popup-link:hover { background: #e74c3c; }
+  .popup-links { display: flex; flex-direction: column; gap: 6px; margin-top: 4px; }
+  .popup-link { display: inline-block; color: #fff; padding: 4px 12px; border-radius: 12px; font-size: 0.75rem; text-decoration: none; background: #c0392b; }
+  .popup-link:hover { filter: brightness(1.15); }
+  .popup-link-maps { background: #4285F4; }
+  .popup-link-yelp { background: #d32323; }
   .legend { position: absolute; bottom: 30px; right: 10px; z-index: 1000; background: rgba(22,33,62,0.92); border: 1px solid #0f3460; border-radius: 8px; padding: 10px 14px; font-size: 0.72rem; }
   .legend-item { display: flex; align-items: center; gap: 7px; margin-bottom: 5px; color: #ccc; }
   .legend-dot { width: 10px; height: 10px; border-radius: 50%; }
@@ -332,7 +335,11 @@ function buildMarkers() {
       <div class="popup-name">${r.n}</div>
       <div class="popup-region">${REGION_NAMES[r.r]||r.r}${r.closed ? ' &nbsp;·&nbsp; <span style="color:#e74c3c">Closed</span>':''}</div>
       <div class="popup-cuisine">${r.c||''}</div>
-      <a class="popup-link" href="${r.url}" target="_blank">Watch on KQED ↗</a>
+      <div class="popup-links">
+        <a class="popup-link" href="${r.url}" target="_blank">Watch on KQED ↗</a>
+        <a class="popup-link popup-link-maps" href="https://www.google.com/maps?q=${r.lat},${r.lng}" target="_blank">Open in Google Maps ↗</a>
+        <a class="popup-link popup-link-yelp" href="https://www.yelp.com/search?find_desc=${encodeURIComponent(r.n)}&find_loc=${encodeURIComponent(REGION_NAMES[r.r]||'Bay Area, CA')}" target="_blank">Open in Yelp ↗</a>
+      </div>
     `);
     m.on('click', () => selectItem(r.n, false));
     markers.push({ r, m });

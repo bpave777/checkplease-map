@@ -1,0 +1,416 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Check Please! Bay Area – Restaurant Map</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"/>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Segoe UI', sans-serif; height: 100vh; display: flex; flex-direction: column; background: #1a1a2e; color: #eee; }
+  header { background: #c0392b; padding: 12px 20px; display: flex; align-items: center; gap: 14px; flex-shrink: 0; }
+  header h1 { font-size: 1.2rem; font-weight: 700; color: #fff; }
+  header span { font-size: 0.85rem; color: rgba(255,255,255,0.8); }
+  .badge { background: rgba(255,255,255,0.2); border-radius: 12px; padding: 2px 10px; font-size: 0.75rem; color: #fff; }
+  .main { display: flex; flex: 1; overflow: hidden; }
+  #sidebar { width: 320px; flex-shrink: 0; display: flex; flex-direction: column; background: #16213e; border-right: 1px solid #0f3460; }
+  .sidebar-top { padding: 10px 12px; border-bottom: 1px solid #0f3460; flex-shrink: 0; }
+  .search-wrap { position: relative; }
+  .search-wrap input { width: 100%; padding: 8px 12px 8px 32px; border-radius: 20px; border: 1px solid #0f3460; background: #0f3460; color: #eee; font-size: 0.85rem; outline: none; }
+  .search-wrap input::placeholder { color: #888; }
+  .search-icon { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); font-size: 0.8rem; color: #888; }
+  .filters { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
+  .filter-btn { padding: 3px 10px; border-radius: 12px; border: 1px solid #333; background: transparent; color: #aaa; font-size: 0.72rem; cursor: pointer; transition: all .2s; }
+  .filter-btn.active { color: #fff; border-color: transparent; }
+  .filter-btn[data-region="all"].active { background: #c0392b; }
+  .filter-btn[data-region="SF"].active { background: #e67e22; }
+  .filter-btn[data-region="EB"].active { background: #27ae60; }
+  .filter-btn[data-region="NB"].active { background: #8e44ad; }
+  .filter-btn[data-region="SB"].active { background: #2980b9; }
+  .filter-btn[data-region="MB"].active { background: #16a085; }
+  .filter-btn[data-region="CLOSED"].active { background: #7f8c8d; }
+  .count { font-size: 0.72rem; color: #888; margin-top: 6px; }
+  .list { overflow-y: auto; flex: 1; }
+  .list::-webkit-scrollbar { width: 4px; }
+  .list::-webkit-scrollbar-track { background: #16213e; }
+  .list::-webkit-scrollbar-thumb { background: #0f3460; border-radius: 2px; }
+  .region-group h3 { padding: 8px 12px 4px; font-size: 0.7rem; text-transform: uppercase; letter-spacing: 1px; color: #888; border-bottom: 1px solid #0f3460; }
+  .rest-item { padding: 9px 12px; border-bottom: 1px solid #0f3460; cursor: pointer; transition: background .15s; display: flex; align-items: flex-start; gap: 8px; }
+  .rest-item:hover { background: #0f3460; }
+  .rest-item.active { background: #1a3a6c; border-left: 3px solid #c0392b; }
+  .rest-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; margin-top: 4px; }
+  .rest-info { flex: 1; min-width: 0; }
+  .rest-name { font-size: 0.85rem; font-weight: 600; color: #e8e8e8; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .rest-item.closed .rest-name { color: #888; text-decoration: line-through; }
+  .rest-meta { font-size: 0.72rem; color: #888; margin-top: 1px; }
+  .rest-link { font-size: 0.7rem; color: #e74c3c; text-decoration: none; margin-left: auto; flex-shrink: 0; padding-top: 3px; }
+  .rest-link:hover { text-decoration: underline; }
+  #map { flex: 1; }
+  .leaflet-popup-content-wrapper { background: #1a2a4a; color: #eee; border: 1px solid #0f3460; border-radius: 8px; }
+  .leaflet-popup-tip { background: #1a2a4a; }
+  .popup-name { font-weight: 700; font-size: 1rem; color: #fff; margin-bottom: 4px; }
+  .popup-region { font-size: 0.75rem; color: #aaa; margin-bottom: 6px; }
+  .popup-cuisine { font-size: 0.8rem; color: #ddd; margin-bottom: 8px; }
+  .popup-closed { color: #e74c3c; font-size: 0.75rem; font-style: italic; margin-bottom: 4px; }
+  .popup-link { display: inline-block; background: #c0392b; color: #fff; padding: 4px 12px; border-radius: 12px; font-size: 0.75rem; text-decoration: none; }
+  .popup-link:hover { background: #e74c3c; }
+  .legend { position: absolute; bottom: 30px; right: 10px; z-index: 1000; background: rgba(22,33,62,0.92); border: 1px solid #0f3460; border-radius: 8px; padding: 10px 14px; font-size: 0.72rem; }
+  .legend-item { display: flex; align-items: center; gap: 7px; margin-bottom: 5px; color: #ccc; }
+  .legend-dot { width: 10px; height: 10px; border-radius: 50%; }
+  .no-results { padding: 20px 12px; text-align: center; color: #888; font-size: 0.85rem; }
+</style>
+</head>
+<body>
+<header>
+  <div>
+    <h1>🍽️ Check Please! Bay Area</h1>
+    <span>Interactive restaurant map from KQED's award-winning show</span>
+  </div>
+  <div class="badge" id="total-badge">Loading…</div>
+</header>
+<div class="main">
+  <div id="sidebar">
+    <div class="sidebar-top">
+      <div class="search-wrap">
+        <span class="search-icon">🔍</span>
+        <input type="text" id="search" placeholder="Search restaurants…">
+      </div>
+      <div class="filters">
+        <button class="filter-btn active" data-region="all">All</button>
+        <button class="filter-btn" data-region="SF" style="border-color:#e67e22">SF</button>
+        <button class="filter-btn" data-region="EB" style="border-color:#27ae60">East Bay</button>
+        <button class="filter-btn" data-region="NB" style="border-color:#8e44ad">North Bay</button>
+        <button class="filter-btn" data-region="SB" style="border-color:#2980b9">South Bay</button>
+        <button class="filter-btn" data-region="MB" style="border-color:#16a085">Monterey</button>
+        <button class="filter-btn" data-region="CLOSED" style="border-color:#7f8c8d">Closed</button>
+      </div>
+      <div class="count" id="count-label">Loading…</div>
+    </div>
+    <div class="list" id="list"></div>
+  </div>
+  <div id="map"></div>
+</div>
+
+<script>
+const REGION_COLORS = { SF:'#e67e22', EB:'#27ae60', NB:'#8e44ad', SB:'#2980b9', MB:'#16a085' };
+const REGION_NAMES = { SF:'San Francisco', EB:'East Bay', NB:'North Bay', SB:'Peninsula/South Bay', MB:'Monterey Bay' };
+
+const restaurants = [
+  // SAN FRANCISCO
+  {n:"1300 on Fillmore",r:"SF",lat:37.7836,lng:-122.4316,url:"https://www.kqed.org/checkplease/2012/09/19/1300-on-fillmore-restaurant-info/",c:"American Soul Food"},
+  {n:"4505 Burgers & BBQ",r:"SF",lat:37.7713,lng:-122.4200,url:"https://www.kqed.org/checkplease/19773/",c:"BBQ"},
+  {n:"620 Jones",r:"SF",lat:37.7869,lng:-122.4149,url:"https://www.kqed.org/checkplease/21506/",c:"American"},
+  {n:"Absinthe Brasserie & Bar",r:"SF",lat:37.7766,lng:-122.4225,url:"https://www.kqed.org/checkplease/2006/09/28/absinthe-brasserie-bar-restaurant-info/",c:"French Brasserie"},
+  {n:"Acquerello",r:"SF",lat:37.7919,lng:-122.4205,url:"https://www.kqed.org/checkplease/2009/04/30/acquerello-restaurant-info/",c:"Italian"},
+  {n:"Anchor Oyster Bar",r:"SF",lat:37.7620,lng:-122.4333,url:"https://www.kqed.org/checkplease/2008/10/03/anchor-oyster-bar-seafood-market-restaurant-info/",c:"Seafood"},
+  {n:"Atelier Crenn",r:"SF",lat:37.7993,lng:-122.4359,url:"https://www.kqed.org/checkplease/2016/10/20/check-please-bay-area-reviews-tosca-cafe-nicks-next-door-atelier-crenn/",c:"French"},
+  {n:"Aziza",r:"SF",lat:37.7764,lng:-122.4870,url:"https://www.kqed.org/checkplease/2006/02/09/aziza-restaurant-info/",c:"Moroccan"},
+  {n:"Abacá",r:"SF",lat:37.8085,lng:-122.4156,url:"https://www.kqed.org/checkplease/22199/",c:"Filipino"},
+  {n:"Auntie April's Chicken, Waffles & Soul Food",r:"SF",lat:37.7285,lng:-122.4165,url:"https://www.kqed.org/checkplease/2010/07/22/auntie-aprils-chicken-waffles-soul-food-restaurant-info/",c:"Soul Food"},
+  {n:"A Mano",r:"SF",lat:37.7637,lng:-122.4348,url:"https://www.kqed.org/checkplease/20669/",c:"Italian"},
+  {n:"Anh Hong",r:"SF",lat:37.7845,lng:-122.4095,url:"https://www.kqed.org/checkplease/2006/02/09/anh-hong-restaurant-restaurant-info/",c:"Vietnamese"},
+  {n:"Alamo Square Seafood Grill",r:"SF",lat:37.7773,lng:-122.4351,url:"https://www.kqed.org/checkplease/2006/03/16/alamo-square-seafood-grill-restaurant-info/",c:"Seafood"},
+  {n:"All Good Pizza",r:"SF",lat:37.7530,lng:-122.4172,url:"https://www.kqed.org/checkplease/19800/",c:"Pizza"},
+  {n:"Arsicault Bakery",r:"SF",lat:37.7780,lng:-122.4606,url:"https://www.kqed.org/checkplease/21219/",c:"Bakery"},
+  {n:"Bix",r:"SF",lat:37.7970,lng:-122.4056,url:"https://www.kqed.org/checkplease/2005/10/27/bix-restaurant-info/",c:"Supper Club"},
+  {n:"Boba Guys",r:"SF",lat:37.7780,lng:-122.4138,url:"https://www.kqed.org/checkplease/19069/",c:"Bubble Tea"},
+  {n:"Brenda's French Soul Food",r:"SF",lat:37.7820,lng:-122.4194,url:"https://www.kqed.org/checkplease/2010/04/29/brendas-french-soul-food-restaurant-info/",c:"Creole/Soul Food"},
+  {n:"Burma Superstar",r:"SF",lat:37.7827,lng:-122.4650,url:"https://www.kqed.org/checkplease/2008/01/11/burma-superstar-restaurant-info/",c:"Burmese"},
+  {n:"Cafe Du Soleil",r:"SF",lat:37.7740,lng:-122.4346,url:"https://www.kqed.org/checkplease/2009/11/19/cafe-du-soleil-restaurant-info/",c:"French"},
+  {n:"Chez Maman",r:"SF",lat:37.7622,lng:-122.4284,url:"https://www.kqed.org/checkplease/2006/03/09/chez-maman-restaurant-info/",c:"French"},
+  {n:"Chez Panisse (SF location feature)",r:"SF",lat:37.7949,lng:-122.4204,url:"https://www.kqed.org/checkplease/",c:"California"},
+  {n:"Cotogna",r:"SF",lat:37.7980,lng:-122.4077,url:"https://www.kqed.org/checkplease/2012/10/31/cotogna-restaurant-info/",c:"Italian"},
+  {n:"Dosa",r:"SF",lat:37.7587,lng:-122.4242,url:"https://www.kqed.org/checkplease/2007/02/15/dosa-restaurant-info/",c:"South Indian"},
+  {n:"Dumpling Home",r:"SF",lat:37.7844,lng:-122.4053,url:"https://www.kqed.org/checkplease/20562/",c:"Chinese/Dumplings"},
+  {n:"El Farolito",r:"SF",lat:37.7513,lng:-122.4184,url:"https://www.kqed.org/checkplease/2007/03/07/el-farolito-restaurant-info/",c:"Mexican"},
+  {n:"Espetus Churrascaria",r:"SF",lat:37.7826,lng:-122.4238,url:"https://www.kqed.org/checkplease/2009/01/22/espetus-churrascaria-restaurant-info/",c:"Brazilian Steakhouse"},
+  {n:"Foreign Cinema",r:"SF",lat:37.7561,lng:-122.4171,url:"https://www.kqed.org/checkplease/2007/02/22/foreign-cinema-restaurant-info/",c:"California/Mediterranean"},
+  {n:"Frances",r:"SF",lat:37.7601,lng:-122.4338,url:"https://www.kqed.org/checkplease/2011/03/31/frances-restaurant-info/",c:"California"},
+  {n:"Gary Danko",r:"SF",lat:37.8077,lng:-122.4217,url:"https://www.kqed.org/checkplease/2006/02/02/gary-danko-restaurant-info/",c:"American Fine Dining"},
+  {n:"Gracias Madre",r:"SF",lat:37.7646,lng:-122.4226,url:"https://www.kqed.org/checkplease/2015/03/26/watch-check-please-bay-area-reviews-gracias-madre-la-traviata-bix/",c:"Mexican Vegan"},
+  {n:"Hog Island Oyster Co. (SF)",r:"SF",lat:37.7986,lng:-122.3977,url:"https://www.kqed.org/checkplease/2015/10/22/watch-check-please-bay-area-review-monsieur-benjamin-alys-on-main-hog-island-oyster-co/",c:"Seafood/Oysters"},
+  {n:"Jardinière",r:"SF",lat:37.7773,lng:-122.4209,url:"https://www.kqed.org/checkplease/2005/09/29/jardiniere-restaurant-info/",c:"California/French",closed:true},
+  {n:"Kin Khao",r:"SF",lat:37.7863,lng:-122.4075,url:"https://www.kqed.org/checkplease/2014/11/13/kin-khao-restaurant-info/",c:"Thai"},
+  {n:"Kokkari Estiatorio",r:"SF",lat:37.7978,lng:-122.4035,url:"https://www.kqed.org/checkplease/2006/04/27/kokkari-estiatorio-restaurant-info/",c:"Greek"},
+  {n:"La Ciccia",r:"SF",lat:37.7504,lng:-122.4262,url:"https://www.kqed.org/checkplease/2009/01/08/la-ciccia-restaurant-info/",c:"Sardinian Italian"},
+  {n:"La Folie",r:"SF",lat:37.7932,lng:-122.4217,url:"https://www.kqed.org/checkplease/2006/01/05/la-folie-restaurant-info/",c:"French",closed:true},
+  {n:"La Taqueria",r:"SF",lat:37.7509,lng:-122.4185,url:"https://www.kqed.org/checkplease/2007/05/10/la-taqueria-restaurant-info/",c:"Mexican"},
+  {n:"Little Star Pizza",r:"SF",lat:37.7739,lng:-122.4346,url:"https://www.kqed.org/checkplease/2006/11/02/little-star-pizza-restaurant-info/",c:"Pizza"},
+  {n:"Magnolia Brewing",r:"SF",lat:37.7705,lng:-122.4473,url:"https://www.kqed.org/checkplease/2010/09/30/magnolia-brewing-restaurant-info/",c:"Gastropub"},
+  {n:"Marlowe",r:"SF",lat:37.7862,lng:-122.3979,url:"https://www.kqed.org/checkplease/2012/11/28/marlowe-restaurant-info/",c:"American"},
+  {n:"Mister Jiu's",r:"SF",lat:37.7965,lng:-122.4078,url:"https://www.kqed.org/checkplease/20803/",c:"Chinese American"},
+  {n:"Monsieur Benjamin",r:"SF",lat:37.7769,lng:-122.4215,url:"https://www.kqed.org/checkplease/2015/10/22/watch-check-please-bay-area-review-monsieur-benjamin-alys-on-main-hog-island-oyster-co/",c:"French"},
+  {n:"Nopa",r:"SF",lat:37.7768,lng:-122.4349,url:"https://www.kqed.org/checkplease/2009/10/08/nopa-restaurant-info/",c:"American"},
+  {n:"Nopa (check)",r:"SF",lat:37.7768,lng:-122.4352,url:"https://www.kqed.org/checkplease/",c:"American"},
+  {n:"Oooh Yeah Artisan Sandwiches",r:"SF",lat:37.7843,lng:-122.4072,url:"https://www.kqed.org/checkplease/",c:"Sandwiches"},
+  {n:"Papalote Mexican Grill",r:"SF",lat:37.7620,lng:-122.4330,url:"https://www.kqed.org/checkplease/2008/02/28/papalote-mexican-grill-restaurant-info/",c:"Mexican"},
+  {n:"Perbacco",r:"SF",lat:37.7917,lng:-122.4006,url:"https://www.kqed.org/checkplease/2014/04/10/perbacco-restaurant-info/",c:"Italian"},
+  {n:"Piglet & Co.",r:"SF",lat:37.7591,lng:-122.4185,url:"https://www.kqed.org/checkplease/",c:"American"},
+  {n:"Range",r:"SF",lat:37.7567,lng:-122.4183,url:"https://www.kqed.org/checkplease/2008/09/26/range-restaurant-info/",c:"American",closed:true},
+  {n:"Rich Table",r:"SF",lat:37.7763,lng:-122.4226,url:"https://www.kqed.org/checkplease/2014/01/02/rich-table-restaurant-info/",c:"California"},
+  {n:"Rooh",r:"SF",lat:37.7792,lng:-122.4019,url:"https://www.kqed.org/checkplease/19447/",c:"Indian Contemporary"},
+  {n:"Señor Sisig",r:"SF",lat:37.7823,lng:-122.4105,url:"https://www.kqed.org/checkplease/2014/04/24/senor-sisig-restaurant-info/",c:"Filipino/Mexican"},
+  {n:"Shizen",r:"SF",lat:37.7672,lng:-122.4215,url:"https://www.kqed.org/checkplease/22049/",c:"Vegan Sushi"},
+  {n:"Slanted Door",r:"SF",lat:37.7955,lng:-122.3938,url:"https://www.kqed.org/checkplease/2006/04/06/slanted-door-restaurant-info/",c:"Vietnamese",closed:true},
+  {n:"State Bird Provisions",r:"SF",lat:37.7846,lng:-122.4388,url:"https://www.kqed.org/checkplease/2013/04/17/state-bird-provisions-restaurant-info/",c:"American Dim Sum"},
+  {n:"Tartine Bakery",r:"SF",lat:37.7614,lng:-122.4243,url:"https://www.kqed.org/checkplease/2007/04/12/tartine-bakery-restaurant-info/",c:"Bakery"},
+  {n:"Tosca Cafe",r:"SF",lat:37.7983,lng:-122.4075,url:"https://www.kqed.org/checkplease/2016/10/20/check-please-bay-area-reviews-tosca-cafe-nicks-next-door-atelier-crenn/",c:"Italian"},
+  {n:"True Laurel",r:"SF",lat:37.7671,lng:-122.4215,url:"https://www.kqed.org/checkplease/21656/",c:"Cocktail Bar/Food"},
+  {n:"Zuni Café",r:"SF",lat:37.7770,lng:-122.4200,url:"https://www.kqed.org/checkplease/2006/03/02/zuni-cafe-restaurant-info/",c:"California/Mediterranean"},
+  {n:"20 Spot",r:"SF",lat:37.7617,lng:-122.4244,url:"https://www.kqed.org/checkplease/2014/06/05/20-spot-restaurant-info/",c:"Wine Bar"},
+  {n:"Woodhouse Fish Co.",r:"SF",lat:37.7730,lng:-122.4348,url:"https://www.kqed.org/checkplease/",c:"Seafood"},
+  {n:"Capo's",r:"SF",lat:37.7984,lng:-122.4073,url:"https://www.kqed.org/checkplease/2014/06/26/capos-restaurant-info/",c:"Pizza"},
+  {n:"Contigo",r:"SF",lat:37.7681,lng:-122.4444,url:"https://www.kqed.org/checkplease/2014/04/17/contigo-restaurant-info/",c:"Spanish"},
+  {n:"Liholiho Yacht Club",r:"SF",lat:37.7878,lng:-122.4183,url:"https://www.kqed.org/checkplease/2016/06/16/",c:"Hawaiian"},
+  {n:"Nopalito",r:"SF",lat:37.7770,lng:-122.4355,url:"https://www.kqed.org/checkplease/2011/10/13/nopalito-restaurant-info/",c:"Mexican"},
+  {n:"Petit Crenn",r:"SF",lat:37.7767,lng:-122.4347,url:"https://www.kqed.org/checkplease/",c:"French Breton"},
+  {n:"Cockscomb",r:"SF",lat:37.7800,lng:-122.4008,url:"https://www.kqed.org/checkplease/2015/09/24/",c:"American"},
+  {n:"Lazy Bear",r:"SF",lat:37.7571,lng:-122.4143,url:"https://www.kqed.org/checkplease/2015/10/08/",c:"American"},
+  {n:"Flour + Water",r:"SF",lat:37.7570,lng:-122.4161,url:"https://www.kqed.org/checkplease/2010/12/09/flour-water-restaurant-info/",c:"Italian"},
+  {n:"Che Fico",r:"SF",lat:37.7746,lng:-122.4375,url:"https://www.kqed.org/checkplease/19423/",c:"Italian"},
+  // EAST BAY
+  {n:"Addis Ethiopian Restaurant",r:"EB",lat:37.8085,lng:-122.2615,url:"https://www.kqed.org/checkplease/2010/10/21/addis-ethiopian-restaurant-restaurant-info/",c:"Ethiopian"},
+  {n:"Agave Uptown",r:"EB",lat:37.8121,lng:-122.2666,url:"https://www.kqed.org/checkplease/19643/",c:"Mexican"},
+  {n:"Agrodolce Osteria",r:"EB",lat:37.8678,lng:-122.2575,url:"https://www.kqed.org/checkplease/20623/",c:"Italian"},
+  {n:"Aburaya",r:"EB",lat:37.8140,lng:-122.2671,url:"https://www.kqed.org/checkplease/20198/",c:"Japanese Tempura"},
+  {n:"Anaviv's Table",r:"EB",lat:37.9021,lng:-122.0698,url:"https://www.kqed.org/checkplease/20803/",c:"Mediterranean"},
+  {n:"Ajanta Restaurant",r:"EB",lat:37.8766,lng:-122.2688,url:"https://www.kqed.org/checkplease/21440/",c:"Indian"},
+  {n:"Angeline's Louisiana Kitchen",r:"EB",lat:37.8694,lng:-122.2685,url:"https://www.kqed.org/checkplease/2008/04/18/angelines-louisiana-kitchen-restaurant-info/",c:"Cajun/Creole"},
+  {n:"Arizmendi Emeryville Bakery",r:"EB",lat:37.8323,lng:-122.2803,url:"https://www.kqed.org/checkplease/22049/",c:"Bakery/Pizza"},
+  {n:"Alamar Kitchen + Bar",r:"EB",lat:37.8092,lng:-122.2652,url:"https://www.kqed.org/checkplease/20398/",c:"Seafood/Latin"},
+  {n:"Asmara Restaurant",r:"EB",lat:37.8465,lng:-122.2640,url:"https://www.kqed.org/checkplease/20246/",c:"Eritrean/Ethiopian"},
+  {n:"Babalou's Mediterranean",r:"EB",lat:37.8043,lng:-122.2652,url:"https://www.kqed.org/checkplease/2010/10/07/babalous-restaurant-info/",c:"Mediterranean"},
+  {n:"Bistro Liaison",r:"EB",lat:37.8626,lng:-122.2687,url:"https://www.kqed.org/checkplease/2014/06/26/bistro-liaison-restaurant-info/",c:"French"},
+  {n:"Bake Sum",r:"EB",lat:37.8317,lng:-122.2660,url:"https://www.kqed.org/checkplease/22089/",c:"Asian Bakery"},
+  {n:"Chez Panisse",r:"EB",lat:37.8800,lng:-122.2695,url:"https://www.kqed.org/checkplease/2006/01/05/chez-panisse-restaurant-info/",c:"California"},
+  {n:"Camino",r:"EB",lat:37.8108,lng:-122.2643,url:"https://www.kqed.org/checkplease/2010/04/15/camino-restaurant-info/",c:"California",closed:true},
+  {n:"Commis",r:"EB",lat:37.8127,lng:-122.2637,url:"https://www.kqed.org/checkplease/2012/03/21/commis-restaurant-info/",c:"Modern American"},
+  {n:"Dragon Rouge",r:"EB",lat:37.8701,lng:-122.2682,url:"https://www.kqed.org/checkplease/",c:"Chinese"},
+  {n:"Dopo",r:"EB",lat:37.8130,lng:-122.2632,url:"https://www.kqed.org/checkplease/2009/09/17/dopo-restaurant-info/",c:"Italian"},
+  {n:"Duende",r:"EB",lat:37.8084,lng:-122.2699,url:"https://www.kqed.org/checkplease/2014/01/23/duende-restaurant-info/",c:"Spanish",closed:true},
+  {n:"Homeroom",r:"EB",lat:37.8130,lng:-122.2638,url:"https://www.kqed.org/checkplease/2012/11/15/homeroom-restaurant-info/",c:"Mac & Cheese"},
+  {n:"Italian Colors Restaurant",r:"EB",lat:37.8045,lng:-122.2325,url:"https://www.kqed.org/checkplease/2014/04/24/italian-colors-restaurant-info/",c:"Italian"},
+  {n:"Juhu Beach Club",r:"EB",lat:37.8135,lng:-122.2655,url:"https://www.kqed.org/checkplease/2013/12/19/juhu-beach-club-restaurant-info/",c:"Indian Street Food",closed:true},
+  {n:"Luka's Taproom & Lounge",r:"EB",lat:37.8099,lng:-122.2683,url:"https://www.kqed.org/checkplease/2014/08/14/lukas-taproom-lounge-restaurant-info/",c:"Gastropub",closed:true},
+  {n:"Noodle Theory Provisions",r:"EB",lat:37.8692,lng:-122.2575,url:"https://www.kqed.org/checkplease/",c:"Noodles"},
+  {n:"Penrose",r:"EB",lat:37.8122,lng:-122.2643,url:"https://www.kqed.org/checkplease/",c:"American"},
+  {n:"Picán",r:"EB",lat:37.8113,lng:-122.2672,url:"https://www.kqed.org/checkplease/2014/05/22/pican-restaurant-info/",c:"Southern American",closed:true},
+  {n:"Ramen Shop",r:"EB",lat:37.8113,lng:-122.2640,url:"https://www.kqed.org/checkplease/2015/01/29/ramen-shop-restaurant-info/",c:"Ramen"},
+  {n:"Rivoli",r:"EB",lat:37.8784,lng:-122.2682,url:"https://www.kqed.org/checkplease/2009/06/25/rivoli-restaurant-info/",c:"California"},
+  {n:"Smoke Berkeley",r:"EB",lat:37.8701,lng:-122.2719,url:"https://www.kqed.org/checkplease/2014/04/17/smoke-berkeley-restaurant-info/",c:"BBQ",closed:true},
+  {n:"Lalime's",r:"EB",lat:37.8787,lng:-122.2723,url:"https://www.kqed.org/checkplease/2006/03/02/lalimes-restaurant-info/",c:"Mediterranean"},
+  {n:"T & A Stump's",r:"EB",lat:37.8107,lng:-122.2649,url:"https://www.kqed.org/checkplease/",c:"American"},
+  {n:"Tamarindo Antojeria Mexicana",r:"EB",lat:37.8068,lng:-122.2704,url:"https://www.kqed.org/checkplease/2008/05/22/tamarindo-antojeria-mexicana-restaurant-info/",c:"Mexican"},
+  {n:"Wood Tavern",r:"EB",lat:37.8103,lng:-122.2636,url:"https://www.kqed.org/checkplease/2010/02/25/wood-tavern-restaurant-info/",c:"American"},
+  {n:"Pizzaiolo",r:"EB",lat:37.8101,lng:-122.2638,url:"https://www.kqed.org/checkplease/2008/09/18/pizzaiolo-restaurant-info/",c:"Pizza"},
+  {n:"A16 (Oakland)",r:"EB",lat:37.8104,lng:-122.2658,url:"https://www.kqed.org/checkplease/",c:"Italian"},
+  {n:"Gracias Madre (Oakland feature)",r:"EB",lat:37.8120,lng:-122.2660,url:"https://www.kqed.org/checkplease/",c:"Mexican Vegan"},
+  {n:"Shakewell",r:"EB",lat:37.8109,lng:-122.2633,url:"https://www.kqed.org/checkplease/2016/04/21/",c:"Spanish/Mediterranean"},
+  {n:"Duboce Triangle (EB feature)",r:"EB",lat:37.8765,lng:-122.2574,url:"https://www.kqed.org/checkplease/",c:"Contemporary"},
+  {n:"Aburaya (Oakland)",r:"EB",lat:37.8139,lng:-122.2670,url:"https://www.kqed.org/checkplease/20198/",c:"Japanese"},
+  {n:"BurmaLove (Oakland)",r:"EB",lat:37.8111,lng:-122.2672,url:"https://www.kqed.org/checkplease/",c:"Burmese"},
+  {n:"Everett & Jones Barbeque",r:"EB",lat:37.8000,lng:-122.2717,url:"https://www.kqed.org/checkplease/2007/09/27/everett-jones-barbeque-restaurant-info/",c:"BBQ"},
+  // NORTH BAY
+  {n:"Acacia House by Chris Cosentino",r:"NB",lat:38.4984,lng:-122.4710,url:"https://www.kqed.org/checkplease/19545/",c:"California"},
+  {n:"Arcangeli Grocery/Norm's Market",r:"NB",lat:38.4232,lng:-122.8673,url:"https://www.kqed.org/checkplease/",c:"Bakery/Deli"},
+  {n:"Avatar's Restaurant",r:"NB",lat:38.0743,lng:-122.5628,url:"https://www.kqed.org/checkplease/19748/",c:"Indian/Fusion"},
+  {n:"Bacon (Novato)",r:"NB",lat:38.1090,lng:-122.5697,url:"https://www.kqed.org/checkplease/",c:"American Diner"},
+  {n:"Bouchon",r:"NB",lat:38.2949,lng:-122.3062,url:"https://www.kqed.org/checkplease/2006/06/08/bouchon-restaurant-info/",c:"French"},
+  {n:"Buckeye Roadhouse",r:"NB",lat:37.8801,lng:-122.5242,url:"https://www.kqed.org/checkplease/2007/06/14/buckeye-roadhouse-restaurant-info/",c:"American"},
+  {n:"Bistro Don Giovanni",r:"NB",lat:38.3190,lng:-122.2953,url:"https://www.kqed.org/checkplease/2017/06/01/check-please-bay-area-reviews-bistro-don-giovanni-el-molino-central-1760/",c:"Italian"},
+  {n:"Che Figata",r:"NB",lat:38.0614,lng:-122.7298,url:"https://www.kqed.org/checkplease/",c:"Italian"},
+  {n:"Cook St. Helena",r:"NB",lat:38.5055,lng:-122.4708,url:"https://www.kqed.org/checkplease/2011/07/14/cook-st-helena-restaurant-info/",c:"American"},
+  {n:"Della Fattoria",r:"NB",lat:38.2278,lng:-122.6363,url:"https://www.kqed.org/checkplease/2010/03/04/della-fattoria-restaurant-info/",c:"Bakery/Café"},
+  {n:"El Molino Central",r:"NB",lat:38.3282,lng:-122.4638,url:"https://www.kqed.org/checkplease/2017/06/01/check-please-bay-area-reviews-bistro-don-giovanni-el-molino-central-1760/",c:"Mexican"},
+  {n:"Fish",r:"NB",lat:37.9477,lng:-122.5154,url:"https://www.kqed.org/checkplease/2009/10/22/fish-restaurant-info/",c:"Seafood"},
+  {n:"French Laundry",r:"NB",lat:38.4042,lng:-122.3618,url:"https://www.kqed.org/checkplease/2006/10/12/french-laundry-restaurant-info/",c:"American Fine Dining"},
+  {n:"Hog Island Oyster (Marshall)",r:"NB",lat:38.2141,lng:-122.9030,url:"https://www.kqed.org/checkplease/2009/03/12/hog-island-oyster-co-restaurant-info/",c:"Oyster Bar"},
+  {n:"John Ash & Co.",r:"NB",lat:38.4620,lng:-122.7415,url:"https://www.kqed.org/checkplease/2016/05/26/check-please-bay-area-reviews-backdoor-bistro-wine-bar-kingdom-of-dumpling-john-ash-co/",c:"California Wine Country"},
+  {n:"Insalata's",r:"NB",lat:37.9739,lng:-122.5315,url:"https://www.kqed.org/checkplease/2006/06/22/insalatas-restaurant-info/",c:"Mediterranean"},
+  {n:"La Toque",r:"NB",lat:38.2949,lng:-122.2897,url:"https://www.kqed.org/checkplease/2006/11/09/la-toque-restaurant-info/",c:"French"},
+  {n:"Marinitas",r:"NB",lat:37.9741,lng:-122.5320,url:"https://www.kqed.org/checkplease/2010/09/16/marinitas-restaurant-info/",c:"Mexican"},
+  {n:"Marin Sun Farms Butcher Shop",r:"NB",lat:38.0073,lng:-122.5282,url:"https://www.kqed.org/checkplease/2014/04/24/marin-sun-farms-butcher-shop-restaurant-info/",c:"Butcher/Restaurant"},
+  {n:"Murray Circle",r:"NB",lat:37.8286,lng:-122.4784,url:"https://www.kqed.org/checkplease/2014/06/19/murray-circle-restaurant-info/",c:"California",closed:true},
+  {n:"Nick's Cove",r:"NB",lat:38.2161,lng:-122.9036,url:"https://www.kqed.org/checkplease/2009/04/16/nicks-cove-restaurant-info/",c:"California Seafood"},
+  {n:"Oenotri",r:"NB",lat:38.2975,lng:-122.2898,url:"https://www.kqed.org/checkplease/2011/06/23/oenotri-restaurant-info/",c:"Italian"},
+  {n:"Restaurant at Meadowood",r:"NB",lat:38.5175,lng:-122.4783,url:"https://www.kqed.org/checkplease/2010/01/14/restaurant-at-meadowood-restaurant-info/",c:"Fine Dining",closed:true},
+  {n:"Sol Food",r:"NB",lat:37.9543,lng:-122.5193,url:"https://www.kqed.org/checkplease/20185/",c:"Puerto Rican"},
+  {n:"Terrapin Creek Cafe",r:"NB",lat:38.7156,lng:-123.4589,url:"https://www.kqed.org/checkplease/2012/06/21/terrapin-creek-cafe-restaurant-info/",c:"California"},
+  {n:"The Girl & the Fig",r:"NB",lat:38.2927,lng:-122.4567,url:"https://www.kqed.org/checkplease/2007/01/18/the-girl-and-the-fig-restaurant-info/",c:"French Provençal"},
+  {n:"The Tipsy Pig (NB branch feature)",r:"NB",lat:38.0960,lng:-122.5355,url:"https://www.kqed.org/checkplease/",c:"American"},
+  {n:"Willi's Seafood",r:"NB",lat:38.5059,lng:-122.8056,url:"https://www.kqed.org/checkplease/2010/10/14/willis-seafood-and-raw-bar-restaurant-info/",c:"Seafood Tapas"},
+  {n:"Zazu Kitchen + Farm",r:"NB",lat:38.3950,lng:-122.7010,url:"https://www.kqed.org/checkplease/2012/02/16/zazu-kitchen-farm-restaurant-info/",c:"California",closed:true},
+  {n:"Barndiva",r:"NB",lat:38.7163,lng:-122.9921,url:"https://www.kqed.org/checkplease/2010/06/17/barndiva-restaurant-info/",c:"California"},
+  {n:"Cafe La Haye",r:"NB",lat:38.2928,lng:-122.4572,url:"https://www.kqed.org/checkplease/2007/09/20/cafe-la-haye-restaurant-info/",c:"California"},
+  {n:"Checkers (Sonoma)",r:"NB",lat:38.2924,lng:-122.4568,url:"https://www.kqed.org/checkplease/",c:"American"},
+  {n:"Diavola",r:"NB",lat:38.7158,lng:-122.9921,url:"https://www.kqed.org/checkplease/2011/05/19/diavola-restaurant-info/",c:"Italian"},
+  {n:"Farmhouse Inn & Restaurant",r:"NB",lat:38.5029,lng:-122.8966,url:"https://www.kqed.org/checkplease/2008/07/31/farmhouse-inn-restaurant-restaurant-info/",c:"California Wine Country"},
+  // SOUTH BAY / PENINSULA
+  {n:"ADEGA",r:"SB",lat:37.3382,lng:-121.8863,url:"https://www.kqed.org/checkplease/19064/",c:"Portuguese"},
+  {n:"Alexander's Steakhouse",r:"SB",lat:37.3935,lng:-122.0494,url:"https://www.kqed.org/checkplease/2009/03/20/alexanders-steakhouse-restaurant-info/",c:"Steakhouse"},
+  {n:"Amber India",r:"SB",lat:37.3990,lng:-121.9849,url:"https://www.kqed.org/checkplease/2007/03/22/amber-india-restaurant-info/",c:"Indian"},
+  {n:"Aldo's Ristorante & Bar",r:"SB",lat:36.9741,lng:-122.0308,url:"https://www.kqed.org/checkplease/2007/11/08/aldos-ristorante-bar-restaurant-info/",c:"Italian"},
+  {n:"All Spice",r:"SB",lat:37.5630,lng:-122.2841,url:"https://www.kqed.org/checkplease/2012/05/23/all-spice-restaurant-info/",c:"Indian Contemporary"},
+  {n:"Back A Yard Caribbean Grill",r:"SB",lat:37.3905,lng:-121.9722,url:"https://www.kqed.org/checkplease/2012/05/03/back-a-yard-restaurant-info/",c:"Caribbean"},
+  {n:"Basque Cultural Center",r:"SB",lat:37.6582,lng:-122.3977,url:"https://www.kqed.org/checkplease/2007/01/25/basque-cultural-center-restaurant-info/",c:"Basque"},
+  {n:"Baumé",r:"SB",lat:37.4419,lng:-122.1601,url:"https://www.kqed.org/checkplease/2012/11/07/baume-restaurant-info/",c:"French Fine Dining"},
+  {n:"Café Bakery & Restaurant",r:"SB",lat:37.5485,lng:-122.0534,url:"https://www.kqed.org/checkplease/",c:"American"},
+  {n:"Cascal",r:"SB",lat:37.4148,lng:-122.1049,url:"https://www.kqed.org/checkplease/2007/09/27/cascal-restaurant-info/",c:"Latin"},
+  {n:"Dio Deka",r:"SB",lat:37.2373,lng:-121.9827,url:"https://www.kqed.org/checkplease/2010/12/16/dio-deka-restaurant-info/",c:"Greek"},
+  {n:"Evvia Estiatorio",r:"SB",lat:37.4436,lng:-122.1616,url:"https://www.kqed.org/checkplease/2014/04/03/evvia-estiatorio-restaurant-info/",c:"Greek"},
+  {n:"Flea Street Cafe",r:"SB",lat:37.4806,lng:-122.2012,url:"https://www.kqed.org/checkplease/2007/10/18/flea-street-cafe-restaurant-info/",c:"California"},
+  {n:"Maykadeh Restaurant",r:"SB",lat:37.3956,lng:-122.0286,url:"https://www.kqed.org/checkplease/2014/05/22/maykadeh-restaurant-info/",c:"Persian"},
+  {n:"Manresa",r:"SB",lat:37.1785,lng:-121.9855,url:"https://www.kqed.org/checkplease/2007/11/29/manresa-restaurant-info/",c:"Fine Dining"},
+  {n:"Quattro",r:"SB",lat:37.4568,lng:-122.1697,url:"https://www.kqed.org/checkplease/",c:"Italian"},
+  {n:"Sakoon Restaurant",r:"SB",lat:37.3971,lng:-122.0284,url:"https://www.kqed.org/checkplease/2014/07/24/sakoon-restaurant-info/",c:"Indian"},
+  {n:"Tamarine",r:"SB",lat:37.4446,lng:-122.1622,url:"https://www.kqed.org/checkplease/2006/04/13/tamarine-restaurant-info/",c:"Vietnamese"},
+  {n:"Village Pub",r:"SB",lat:37.5254,lng:-122.3586,url:"https://www.kqed.org/checkplease/2007/02/01/the-village-pub-restaurant-info/",c:"California"},
+  {n:"7 Mile House",r:"SB",lat:37.6539,lng:-122.4006,url:"https://www.kqed.org/checkplease/20295/",c:"Filipino/American"},
+  {n:"La Costanera",r:"SB",lat:37.5259,lng:-122.5123,url:"https://www.kqed.org/checkplease/2014/08/14/la-costanera-restaurant-info/",c:"Peruvian"},
+  {n:"Hana Japanese Restaurant",r:"SB",lat:37.9780,lng:-122.5295,url:"https://www.kqed.org/checkplease/2014/07/17/hana-japanese-restaurant-info/",c:"Japanese"},
+  // MONTEREY BAY
+  {n:"Aubergine",r:"MB",lat:36.5537,lng:-121.9229,url:"https://www.kqed.org/checkplease/2009/01/15/aubergine-restaurant-info/",c:"French Fine Dining"},
+  {n:"Cafe Beaujolais",r:"MB",lat:39.2388,lng:-123.7927,url:"https://www.kqed.org/checkplease/2009/09/10/cafe-beaujolais-restaurant-info/",c:"California"},
+  {n:"Cultura Comida y Bebida",r:"MB",lat:36.6777,lng:-121.6554,url:"https://www.kqed.org/checkplease/2017/05/04/check-please-bay-area-season-12-reviews-cultura-comida-y-bebida-moro-el-nayarita-taqueria-el-grullense-ii/",c:"Mexican"},
+  {n:"Fandango Restaurant",r:"MB",lat:36.6025,lng:-121.8726,url:"https://www.kqed.org/checkplease/2007/05/03/fandango-restaurant-restaurant-info/",c:"Mediterranean"},
+  {n:"La Bicyclette",r:"MB",lat:36.5529,lng:-121.9217,url:"https://www.kqed.org/checkplease/2014/11/06/la-bicyclette-restaurant-info/",c:"French/European"},
+  {n:"Passionfish",r:"MB",lat:36.5970,lng:-121.8804,url:"https://www.kqed.org/checkplease/2007/04/19/passionfish-restaurant-info/",c:"Seafood"},
+  {n:"Sierra Mar",r:"MB",lat:36.1623,lng:-121.6688,url:"https://www.kqed.org/checkplease/2009/03/05/sierra-mar-restaurant-info/",c:"California"},
+  {n:"Stokes Restaurant & Bar",r:"MB",lat:36.6777,lng:-121.6558,url:"https://www.kqed.org/checkplease/2006/05/04/stokes-restaurant-and-bar-restaurant-info/",c:"Mediterranean",closed:true},
+  {n:"Hula's Island Grill",r:"MB",lat:36.9741,lng:-122.0314,url:"https://www.kqed.org/checkplease/2009/05/14/hulas-island-grill-restaurant-info/",c:"Hawaiian/Tiki"},
+  {n:"Shadowbrook Restaurant",r:"MB",lat:36.9745,lng:-122.0218,url:"https://www.kqed.org/checkplease/2007/03/29/shadowbrook-restaurant-info/",c:"American"},
+];
+
+// Deduplicate
+const seen = new Set();
+const data = restaurants.filter(r => {
+  const key = r.n + r.r;
+  if (seen.has(key)) return false;
+  seen.add(key);
+  return true;
+});
+
+let activeRegion = 'all';
+let searchQ = '';
+let activeMarker = null;
+let markers = [];
+
+const map = L.map('map').setView([37.8, -122.25], 9);
+L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+  maxZoom: 19
+}).addTo(map);
+
+function colorForRegion(r) { return REGION_COLORS[r] || '#aaa'; }
+
+function makeIcon(color, small) {
+  const s = small ? 10 : 14;
+  return L.divIcon({
+    className:'',
+    html:`<div style="width:${s}px;height:${s}px;border-radius:50%;background:${color};border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.6)"></div>`,
+    iconSize:[s,s], iconAnchor:[s/2,s/2]
+  });
+}
+
+function filtered() {
+  return data.filter(r => {
+    const matchRegion = activeRegion === 'all' || (activeRegion === 'CLOSED' ? r.closed : r.r === activeRegion && !r.closed);
+    const matchSearch = !searchQ || r.n.toLowerCase().includes(searchQ) || (r.c||'').toLowerCase().includes(searchQ);
+    return matchRegion && matchSearch;
+  });
+}
+
+function buildMarkers() {
+  markers.forEach(m => map.removeLayer(m.m));
+  markers = [];
+  const vis = filtered();
+  vis.forEach((r, i) => {
+    const color = colorForRegion(r.r);
+    const m = L.marker([r.lat, r.lng], { icon: makeIcon(r.closed ? '#7f8c8d' : color, true) }).addTo(map);
+    m.bindPopup(`
+      <div class="popup-name">${r.n}</div>
+      <div class="popup-region">${REGION_NAMES[r.r]||r.r}${r.closed ? ' &nbsp;·&nbsp; <span style="color:#e74c3c">Closed</span>':''}</div>
+      <div class="popup-cuisine">${r.c||''}</div>
+      <a class="popup-link" href="${r.url}" target="_blank">Watch on KQED ↗</a>
+    `);
+    m.on('click', () => selectItem(r.n, false));
+    markers.push({ r, m });
+  });
+}
+
+function buildList() {
+  const list = document.getElementById('list');
+  const vis = filtered();
+  document.getElementById('count-label').textContent = `Showing ${vis.length} of ${data.length} restaurants`;
+  if (!vis.length) { list.innerHTML = '<div class="no-results">No restaurants found.</div>'; return; }
+
+  // Group by region
+  const groups = {};
+  vis.forEach(r => {
+    if (!groups[r.r]) groups[r.r] = [];
+    groups[r.r].push(r);
+  });
+  const order = ['SF','EB','NB','SB','MB'];
+  let html = '';
+  order.forEach(reg => {
+    if (!groups[reg]) return;
+    html += `<div class="region-group"><h3>${REGION_NAMES[reg]}</h3>`;
+    groups[reg].sort((a,b) => a.n.localeCompare(b.n)).forEach(r => {
+      const color = colorForRegion(r.r);
+      html += `<div class="rest-item${r.closed?' closed':''}" data-name="${r.n.replace(/"/g,'&quot;')}">
+        <div class="rest-dot" style="background:${r.closed?'#7f8c8d':color}"></div>
+        <div class="rest-info">
+          <div class="rest-name">${r.n}</div>
+          <div class="rest-meta">${r.c||''}${r.closed?' · Closed':''}</div>
+        </div>
+        <a class="rest-link" href="${r.url}" target="_blank">KQED&nbsp;↗</a>
+      </div>`;
+    });
+    html += '</div>';
+  });
+  list.innerHTML = html;
+  list.querySelectorAll('.rest-item').forEach(el => {
+    el.addEventListener('click', e => {
+      if (e.target.tagName === 'A') return;
+      selectItem(el.dataset.name, true);
+    });
+  });
+}
+
+function selectItem(name, panMap) {
+  // highlight list
+  document.querySelectorAll('.rest-item').forEach(el => el.classList.toggle('active', el.dataset.name === name));
+  // scroll to item
+  const el = document.querySelector(`.rest-item[data-name="${CSS.escape(name)}"]`);
+  if (el) el.scrollIntoView({ behavior:'smooth', block:'nearest' });
+  // open popup
+  const entry = markers.find(m => m.r.n === name);
+  if (entry) {
+    if (panMap) map.setView([entry.r.lat, entry.r.lng], Math.max(map.getZoom(), 13), { animate: true });
+    entry.m.openPopup();
+  }
+}
+
+function render() { buildMarkers(); buildList(); }
+
+// Filter buttons
+document.querySelectorAll('.filter-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    activeRegion = btn.dataset.region;
+    render();
+  });
+});
+
+document.getElementById('search').addEventListener('input', e => {
+  searchQ = e.target.value.toLowerCase().trim();
+  render();
+});
+
+document.getElementById('total-badge').textContent = `${data.length} restaurants`;
+render();
+</script>
+</body>
+</html>

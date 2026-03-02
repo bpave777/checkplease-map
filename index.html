@@ -98,6 +98,7 @@
 <script>
 const REGION_COLORS = { SF:'#e67e22', EB:'#27ae60', NB:'#8e44ad', SB:'#2980b9', MB:'#16a085' };
 const REGION_NAMES = { SF:'San Francisco', EB:'East Bay', NB:'North Bay', SB:'Peninsula/South Bay', MB:'Monterey Bay' };
+const REGION_CITIES = { SF:'San Francisco, CA', EB:'Oakland, CA', NB:'Marin County, CA', SB:'San Jose, CA', MB:'Monterey, CA' };
 
 const restaurants = [
   // SAN FRANCISCO
@@ -338,7 +339,7 @@ function buildMarkers() {
       <div class="popup-links">
         <a class="popup-link" href="${r.url}" target="_blank">Watch on KQED ↗</a>
         <a class="popup-link popup-link-maps" href="https://www.google.com/search?q=${encodeURIComponent(r.n)}" target="_blank">Open in Google Maps ↗</a>
-        <a class="popup-link popup-link-yelp" href="https://www.yelp.com/search?find_desc=${encodeURIComponent(r.n)}&find_loc=${encodeURIComponent(REGION_NAMES[r.r]||'Bay Area, CA')}" target="_blank">Open in Yelp ↗</a>
+        <a class="popup-link popup-link-yelp" href="https://www.yelp.com/search?find_desc=${encodeURIComponent(r.n)}&find_loc=${encodeURIComponent(REGION_CITIES[r.r]||'Bay Area, CA')}" target="_blank">Open in Yelp ↗</a>
       </div>
     `);
     m.on('click', () => selectItem(r.n, false));

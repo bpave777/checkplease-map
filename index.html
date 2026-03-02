@@ -337,7 +337,7 @@ function buildMarkers() {
       <div class="popup-cuisine">${r.c||''}</div>
       <div class="popup-links">
         <a class="popup-link" href="${r.url}" target="_blank">Watch on KQED ↗</a>
-        <a class="popup-link popup-link-maps" href="https://www.google.com/maps?q=${r.lat},${r.lng}" target="_blank">Open in Google Maps ↗</a>
+        <a class="popup-link popup-link-maps" href="https://www.google.com/search?q=${encodeURIComponent(r.n)}" target="_blank">Open in Google Maps ↗</a>
         <a class="popup-link popup-link-yelp" href="https://www.yelp.com/search?find_desc=${encodeURIComponent(r.n)}&find_loc=${encodeURIComponent(REGION_NAMES[r.r]||'Bay Area, CA')}" target="_blank">Open in Yelp ↗</a>
       </div>
     `);

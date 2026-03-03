@@ -4,8 +4,6 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Check Please! Bay Area – Restaurant Map</title>
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"/>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body { font-family: 'Segoe UI', sans-serif; height: 100vh; display: flex; flex-direction: column; background: #1a1a2e; color: #eee; }
@@ -47,20 +45,11 @@
   .rest-link { font-size: 0.7rem; color: #e74c3c; text-decoration: none; margin-left: auto; flex-shrink: 0; padding-top: 3px; }
   .rest-link:hover { text-decoration: underline; }
   #map { flex: 1; }
-  .leaflet-popup-content-wrapper { background: #1a2a4a; color: #eee; border: 1px solid #0f3460; border-radius: 8px; }
-  .leaflet-popup-tip { background: #1a2a4a; }
-  .popup-name { font-weight: 700; font-size: 1rem; color: #fff; margin-bottom: 4px; }
-  .popup-region { font-size: 0.75rem; color: #aaa; margin-bottom: 6px; }
-  .popup-cuisine { font-size: 0.8rem; color: #ddd; margin-bottom: 8px; }
-  .popup-closed { color: #e74c3c; font-size: 0.75rem; font-style: italic; margin-bottom: 4px; }
-  .popup-links { display: flex; flex-direction: column; gap: 6px; margin-top: 4px; }
-  .popup-link { display: inline-block; color: #fff; padding: 4px 12px; border-radius: 12px; font-size: 0.75rem; text-decoration: none; background: #c0392b; }
-  .popup-link:hover { filter: brightness(1.15); }
-  .popup-link-maps { background: #4285F4; }
-  .popup-link-yelp { background: #d32323; }
-  .legend { position: absolute; bottom: 30px; right: 10px; z-index: 1000; background: rgba(22,33,62,0.92); border: 1px solid #0f3460; border-radius: 8px; padding: 10px 14px; font-size: 0.72rem; }
-  .legend-item { display: flex; align-items: center; gap: 7px; margin-bottom: 5px; color: #ccc; }
-  .legend-dot { width: 10px; height: 10px; border-radius: 50%; }
+  /* Google Maps InfoWindow dark override */
+  .gm-style .gm-style-iw-c { background: #1a2a4a !important; border: 1px solid #0f3460 !important; border-radius: 8px !important; padding: 0 !important; box-shadow: 0 4px 16px rgba(0,0,0,.6) !important; }
+  .gm-style .gm-style-iw-d { overflow: hidden !important; }
+  .gm-style .gm-style-iw-t::after { background: #1a2a4a !important; }
+  .gm-style .gm-ui-hover-effect { filter: invert(1); }
   .no-results { padding: 20px 12px; text-align: center; color: #888; font-size: 0.85rem; }
 </style>
 </head>
@@ -892,24 +881,67 @@ const data = restaurants.filter(r => {
 
 let activeRegion = 'all';
 let searchQ = '';
-let activeMarker = null;
 let markers = [];
+let map, infoWindow;
 
-const map = L.map('map').setView([37.8, -122.25], 9);
-L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
-  attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
-  maxZoom: 19
-}).addTo(map);
+const DARK_STYLE = [
+  {elementType:'geometry', stylers:[{color:'#0d1b2a'}]},
+  {elementType:'labels.text.stroke', stylers:[{color:'#0d1b2a'}]},
+  {elementType:'labels.text.fill', stylers:[{color:'#8899aa'}]},
+  {featureType:'administrative', elementType:'geometry', stylers:[{color:'#1a2a4a'}]},
+  {featureType:'administrative.country', elementType:'labels.text.fill', stylers:[{color:'#9aa5b1'}]},
+  {featureType:'administrative.land_parcel', stylers:[{visibility:'off'}]},
+  {featureType:'administrative.locality', elementType:'labels.text.fill', stylers:[{color:'#bfcbd9'}]},
+  {featureType:'poi', stylers:[{visibility:'off'}]},
+  {featureType:'road', elementType:'geometry', stylers:[{color:'#1a2a4a'}]},
+  {featureType:'road', elementType:'geometry.stroke', stylers:[{color:'#0f3460'}]},
+  {featureType:'road', elementType:'labels.text.fill', stylers:[{color:'#677d8e'}]},
+  {featureType:'road.highway', elementType:'geometry', stylers:[{color:'#0f3460'}]},
+  {featureType:'road.highway', elementType:'geometry.stroke', stylers:[{color:'#1a3a6c'}]},
+  {featureType:'road.highway', elementType:'labels.text.fill', stylers:[{color:'#aab7c4'}]},
+  {featureType:'transit', stylers:[{visibility:'off'}]},
+  {featureType:'water', elementType:'geometry', stylers:[{color:'#0a1628'}]},
+  {featureType:'water', elementType:'labels.text.fill', stylers:[{color:'#4e6d8c'}]},
+];
 
-function colorForRegion(r) { return REGION_COLORS[r] || '#aaa'; }
-
-function makeIcon(color, small) {
-  const s = small ? 10 : 14;
-  return L.divIcon({
-    className:'',
-    html:`<div style="width:${s}px;height:${s}px;border-radius:50%;background:${color};border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.6)"></div>`,
-    iconSize:[s,s], iconAnchor:[s/2,s/2]
+function initMap() {
+  map = new google.maps.Map(document.getElementById('map'), {
+    center: {lat: 37.8, lng: -122.25},
+    zoom: 9,
+    styles: DARK_STYLE,
+    mapTypeControl: false,
+    streetViewControl: false,
+    fullscreenControl: true,
+    zoomControlOptions: { position: google.maps.ControlPosition.RIGHT_BOTTOM },
+    fullscreenControlOptions: { position: google.maps.ControlPosition.RIGHT_BOTTOM },
   });
+  infoWindow = new google.maps.InfoWindow({ maxWidth: 260 });
+  document.getElementById('total-badge').textContent = `${data.length} restaurants`;
+  render();
+}
+
+function markerIcon(color) {
+  return {
+    path: google.maps.SymbolPath.CIRCLE,
+    fillColor: color,
+    fillOpacity: 1,
+    strokeColor: '#ffffff',
+    strokeWeight: 1.5,
+    scale: 6,
+  };
+}
+
+function popupContent(r) {
+  return `<div style="background:#1a2a4a;color:#eee;padding:14px;min-width:210px;font-family:'Segoe UI',sans-serif">
+    <div style="font-weight:700;font-size:1rem;color:#fff;margin-bottom:4px">${r.n}</div>
+    <div style="font-size:0.75rem;color:#aaa;margin-bottom:${r.c?'4px':'8px'}">${REGION_NAMES[r.r]||r.r}${r.closed?' &nbsp;·&nbsp; <span style="color:#e74c3c">Closed</span>':''}</div>
+    ${r.c?`<div style="font-size:0.8rem;color:#ddd;margin-bottom:8px">${r.c}</div>`:''}
+    <div style="display:flex;flex-direction:column;gap:6px">
+      <a href="${r.url}" target="_blank" style="display:block;background:#c0392b;color:#fff;padding:5px 12px;border-radius:12px;font-size:0.75rem;text-decoration:none;text-align:center">Watch on KQED ↗</a>
+      <a href="https://www.google.com/search?q=${encodeURIComponent(r.n)}" target="_blank" style="display:block;background:#4285F4;color:#fff;padding:5px 12px;border-radius:12px;font-size:0.75rem;text-decoration:none;text-align:center">Open in Google Maps ↗</a>
+      <a href="https://www.yelp.com/search?find_desc=${encodeURIComponent(r.n)}&find_loc=${encodeURIComponent(REGION_CITIES[r.r]||'Bay Area, CA')}" target="_blank" style="display:block;background:#d32323;color:#fff;padding:5px 12px;border-radius:12px;font-size:0.75rem;text-decoration:none;text-align:center">Open in Yelp ↗</a>
+    </div>
+  </div>`;
 }
 
 function filtered() {
@@ -921,24 +953,24 @@ function filtered() {
 }
 
 function buildMarkers() {
-  markers.forEach(m => map.removeLayer(m.m));
+  markers.forEach(m => m.m.setMap(null));
   markers = [];
   const vis = filtered();
-  vis.forEach((r, i) => {
-    const color = colorForRegion(r.r);
-    const m = L.marker([r.lat, r.lng], { icon: makeIcon(r.closed ? '#7f8c8d' : color, true) }).addTo(map);
-    m.bindPopup(`
-      <div class="popup-name">${r.n}</div>
-      <div class="popup-region">${REGION_NAMES[r.r]||r.r}${r.closed ? ' &nbsp;·&nbsp; <span style="color:#e74c3c">Closed</span>':''}</div>
-      <div class="popup-cuisine">${r.c||''}</div>
-      <div class="popup-links">
-        <a class="popup-link" href="${r.url}" target="_blank">Watch on KQED ↗</a>
-        <a class="popup-link popup-link-maps" href="https://www.google.com/search?q=${encodeURIComponent(r.n)}" target="_blank">Open in Google Maps ↗</a>
-        <a class="popup-link popup-link-yelp" href="https://www.yelp.com/search?find_desc=${encodeURIComponent(r.n)}&find_loc=${encodeURIComponent(REGION_CITIES[r.r]||'Bay Area, CA')}" target="_blank">Open in Yelp ↗</a>
-      </div>
-    `);
-    m.on('click', () => selectItem(r.n, false));
-    markers.push({ r, m });
+  vis.forEach(r => {
+    const color = r.closed ? '#7f8c8d' : (REGION_COLORS[r.r] || '#aaa');
+    const marker = new google.maps.Marker({
+      position: { lat: r.lat, lng: r.lng },
+      map,
+      icon: markerIcon(color),
+      title: r.n,
+      optimized: true,
+    });
+    marker.addListener('click', () => {
+      infoWindow.setContent(popupContent(r));
+      infoWindow.open({ anchor: marker, map });
+      selectItem(r.n, false);
+    });
+    markers.push({ r, m: marker });
   });
 }
 
@@ -948,24 +980,20 @@ function buildList() {
   document.getElementById('count-label').textContent = `Showing ${vis.length} of ${data.length} restaurants`;
   if (!vis.length) { list.innerHTML = '<div class="no-results">No restaurants found.</div>'; return; }
 
-  // Group by region
   const groups = {};
-  vis.forEach(r => {
-    if (!groups[r.r]) groups[r.r] = [];
-    groups[r.r].push(r);
-  });
+  vis.forEach(r => { if (!groups[r.r]) groups[r.r] = []; groups[r.r].push(r); });
   const order = ['SF','EB','NB','SB','MB'];
   let html = '';
   order.forEach(reg => {
     if (!groups[reg]) return;
     html += `<div class="region-group"><h3>${REGION_NAMES[reg]}</h3>`;
     groups[reg].sort((a,b) => a.n.localeCompare(b.n)).forEach(r => {
-      const color = colorForRegion(r.r);
+      const color = r.closed ? '#7f8c8d' : (REGION_COLORS[r.r] || '#aaa');
       html += `<div class="rest-item${r.closed?' closed':''}" data-name="${r.n.replace(/"/g,'&quot;')}">
-        <div class="rest-dot" style="background:${r.closed?'#7f8c8d':color}"></div>
+        <div class="rest-dot" style="background:${color}"></div>
         <div class="rest-info">
           <div class="rest-name">${r.n}</div>
-          <div class="rest-meta">${r.c||''}${r.closed?' · Closed':''}</div>
+          <div class="rest-meta">${r.c||''} ${r.closed?'· Closed':''}</div>
         </div>
         <a class="rest-link" href="${r.url}" target="_blank">KQED&nbsp;↗</a>
       </div>`;
@@ -982,38 +1010,38 @@ function buildList() {
 }
 
 function selectItem(name, panMap) {
-  // highlight list
   document.querySelectorAll('.rest-item').forEach(el => el.classList.toggle('active', el.dataset.name === name));
-  // scroll to item
   const el = document.querySelector(`.rest-item[data-name="${CSS.escape(name)}"]`);
   if (el) el.scrollIntoView({ behavior:'smooth', block:'nearest' });
-  // open popup
   const entry = markers.find(m => m.r.n === name);
   if (entry) {
-    if (panMap) map.setView([entry.r.lat, entry.r.lng], Math.max(map.getZoom(), 13), { animate: true });
-    entry.m.openPopup();
+    if (panMap) {
+      map.panTo(entry.m.getPosition());
+      if (map.getZoom() < 13) map.setZoom(13);
+    }
+    infoWindow.setContent(popupContent(entry.r));
+    infoWindow.open({ anchor: entry.m, map });
   }
 }
 
 function render() { buildMarkers(); buildList(); }
 
-// Filter buttons
 document.querySelectorAll('.filter-btn').forEach(btn => {
   btn.addEventListener('click', () => {
     document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
     btn.classList.add('active');
     activeRegion = btn.dataset.region;
+    infoWindow.close();
     render();
   });
 });
 
 document.getElementById('search').addEventListener('input', e => {
   searchQ = e.target.value.toLowerCase().trim();
+  infoWindow.close();
   render();
 });
-
-document.getElementById('total-badge').textContent = `${data.length} restaurants`;
-render();
 </script>
+<script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyDvHjbIx2YiV0nc5k4b0hd8zZxU3D3jmeM&callback=initMap&loading=async" async defer></script>
 </body>
 </html>

@@ -882,7 +882,7 @@ const data = restaurants.filter(r => {
 let activeRegion = 'all';
 let searchQ = '';
 let markers = [];
-let map, infoWindow;
+let map, infoWindow, clusterer;
 
 const DARK_STYLE = [
   {elementType:'geometry', stylers:[{color:'#0d1b2a'}]},
@@ -917,6 +917,24 @@ function initMap() {
     fullscreenControlOptions: { position: google.maps.ControlPosition.RIGHT_BOTTOM },
   });
   infoWindow = new google.maps.InfoWindow({ maxWidth: 260 });
+  const clusterRenderer = {
+    render({ count, position }) {
+      return new google.maps.Marker({
+        position,
+        icon: {
+          path: google.maps.SymbolPath.CIRCLE,
+          fillColor: '#c0392b',
+          fillOpacity: 0.9,
+          strokeColor: '#fff',
+          strokeWeight: 2,
+          scale: Math.min(12 + count / 8, 28),
+        },
+        label: { text: String(count), color: '#fff', fontSize: '11px', fontWeight: 'bold' },
+        zIndex: 1000,
+      });
+    }
+  };
+  clusterer = new markerClusterer.MarkerClusterer({ map, markers: [], renderer: clusterRenderer });
   document.getElementById('total-badge').textContent = `${data.length} restaurants`;
   render();
 }
@@ -954,14 +972,13 @@ function filtered() {
 }
 
 function buildMarkers() {
-  markers.forEach(m => m.m.setMap(null));
+  clusterer.clearMarkers();
   markers = [];
   const vis = filtered();
-  vis.forEach(r => {
+  const newMarkers = vis.map(r => {
     const color = r.closed ? '#7f8c8d' : (REGION_COLORS[r.r] || '#aaa');
     const marker = new google.maps.Marker({
       position: { lat: r.lat, lng: r.lng },
-      map,
       icon: markerIcon(color),
       title: r.n,
       optimized: true,
@@ -972,7 +989,9 @@ function buildMarkers() {
       selectItem(r.n, false);
     });
     markers.push({ r, m: marker });
+    return marker;
   });
+  clusterer.addMarkers(newMarkers);
 }
 
 function buildList() {
@@ -1043,6 +1062,7 @@ document.getElementById('search').addEventListener('input', e => {
   render();
 });
 </script>
+<script src="https://unpkg.com/@googlemaps/markerclusterer/dist/index.min.js"></script>
 <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyAncwCw8PsQRDwT45H_jFH3dizXTpZdO-0&callback=initMap&loading=async" async defer></script>
 </body>
 </html>
